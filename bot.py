@@ -111,6 +111,20 @@ class LiqquidityBot:
                     continue
                 raise Exception(f"Failed to Connect to RPC: {str(e)}")
 
+    async def get_token_balance(self, address: str, contract_address: str, use_proxy: bool):
+        try:
+            web3 = await self.get_web3_with_check(address, use_proxy)
+            token_contract = web3.eth.contract(address=web3.to_checksum_address(contract_address), abi=self.ERC20_CONTRACT_ABI)
+            balance = token_contract.functions.balanceOf(address).call()
+            decimals = token_contract.functions.decimals().call()
+            return balance / (10 ** decimals)
+        except Exception as e:
+            self.log(
+                f"{Fore.CYAN+Style.BRIGHT}     Message :{Style.RESET_ALL}"
+                f"{Fore.RED+Style.BRIGHT} Failed to get balance: {str(e)} {Style.RESET_ALL}"
+            )
+            return 0
+
     async def approving_token(self, account: str, address: str, router_address: str, asset_address: str, amount_to_wei: int, use_proxy: bool):
         try:
             web3 = await self.get_web3_with_check(address, use_proxy)
@@ -156,6 +170,12 @@ class LiqquidityBot:
             in_amount = int(amount * (10 ** decimals))
             min_amount = int(in_amount * (1 - 0.1 / 100))  # 0.1% slippage tolerance
             deadline = int(time.time()) + 600
+
+            # Check token balances
+            usdc_balance = await self.get_token_balance(address, base_token, use_proxy)
+            usdt_balance = await self.get_token_balance(address, quote_token, use_proxy)
+            if usdc_balance < amount or usdt_balance < amount:
+                raise Exception(f"Insufficient balance: USDC={usdc_balance}, USDT={usdt_balance}, Required={amount}")
 
             # Approve both tokens
             base_approved = await self.approving_token(account, address, self.DVM_ROUTER_ADDRESS, base_token, in_amount, use_proxy)
@@ -270,8 +290,13 @@ class LiqquidityBot:
                 f"{Fore.CYAN + Style.BRIGHT}     Action  :{Style.RESET_ALL}"
                 f"{Fore.WHITE + Style.BRIGHT} Adding Liquidity {i+1}/100 with {self.lp_amount} USDC/USDT {Style.RESET_ALL}"
             )
-            await self.perform_add_dvm_liquidity(account, address, self.USDC_CONTRACT_ADDRESS, self.USDT_CONTRACT_ADDRESS, self.lp_amount, use_proxy)
-            await asyncio.sleep(5)  # Delay between each LP addition to avoid rate limiting or network issues
+            tx_hash = await self.perform_add_dvm_liquidity(account, address, self.USDC_CONTRACT_ADDRESS, self.USDT_CONTRACT_ADDRESS, self.lp_amount, use_proxy)
+            if not tx_hash:
+                self.log(
+                    f"{Fore.CYAN+Style.BRIGHT}     Warning :{Style.RESET_ALL}"
+                    f"{Fore.YELLOW+Style.BRIGHT} Skipping to next iteration due to failure. {Style.RESET_ALL}"
+                )
+            await asyncio.sleep(5)  # Delay between each LP addition
 
     async def main(self):
         try:
