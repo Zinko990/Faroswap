@@ -264,11 +264,14 @@ class LiqquidityBot:
             f"{Fore.CYAN + Style.BRIGHT}Proxy        :{Style.RESET_ALL}"
             f"{Fore.WHITE + Style.BRIGHT} {proxy} {Style.RESET_ALL}"
         )
-        self.log(
-            f"{Fore.CYAN + Style.BRIGHT}     Action  :{Style.RESET_ALL}"
-            f"{Fore.WHITE + Style.BRIGHT} Adding Liquidity with {self.lp_amount} USDC/USDT {Style.RESET_ALL}"
-        )
-        await self.perform_add_dvm_liquidity(account, address, self.USDC_CONTRACT_ADDRESS, self.USDT_CONTRACT_ADDRESS, self.lp_amount, use_proxy)
+        
+        for i in range(100):  # Loop 100 times for LP addition
+            self.log(
+                f"{Fore.CYAN + Style.BRIGHT}     Action  :{Style.RESET_ALL}"
+                f"{Fore.WHITE + Style.BRIGHT} Adding Liquidity {i+1}/100 with {self.lp_amount} USDC/USDT {Style.RESET_ALL}"
+            )
+            await self.perform_add_dvm_liquidity(account, address, self.USDC_CONTRACT_ADDRESS, self.USDT_CONTRACT_ADDRESS, self.lp_amount, use_proxy)
+            await asyncio.sleep(5)  # Delay between each LP addition to avoid rate limiting or network issues
 
     async def main(self):
         try:
@@ -330,7 +333,7 @@ class LiqquidityBot:
             print(
                 f"{Fore.CYAN+Style.BRIGHT}[ Process Completed ]{Style.RESET_ALL}"
                 f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
-                f"{Fore.BLUE+Style.BRIGHT}All LP Additions Processed.{Style.RESET_ALL}"
+                f"{Fore.BLUE+Style.BRIGHT}All LP Additions (100x per account) Processed.{Style.RESET_ALL}"
             )
 
         except FileNotFoundError:
@@ -349,4 +352,4 @@ if __name__ == "__main__":
             f"{Fore.CYAN + Style.BRIGHT}[ {datetime.now().astimezone(wib).strftime('%x %X %Z')} ]{Style.RESET_ALL}"
             f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
             f"{Fore.RED + Style.BRIGHT}[ EXIT ] Liqquidity - LP BOT{Style.RESET_ALL}"
-                    )
+                )
