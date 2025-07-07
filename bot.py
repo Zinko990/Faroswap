@@ -56,7 +56,7 @@ class LiqquidityBot:
         self.proxies = []
         self.proxy_index = 0
         self.account_proxies = {}
-        self.lp_amount = 0  # Amount for LP addition (to be set by user input)
+        self.lp_amount = 0
 
     def clear_terminal(self):
         os.system('cls' if os.name == 'nt' else 'clear')
@@ -134,7 +134,7 @@ class LiqquidityBot:
             if allowance < amount_to_wei:
                 approve_data = token_contract.functions.approve(spender, 2**256 - 1)
                 estimated_gas = approve_data.estimate_gas({"from": address})
-                max_priority_fee = web3.to_wei(1, "gwei")
+                max_priority_fee = web3.to_wei(2, "gwei")  # Increased gas fee
                 max_fee = max_priority_fee
                 approve_tx = approve_data.build_transaction({
                     "from": address,
@@ -147,7 +147,7 @@ class LiqquidityBot:
                 signed_tx = web3.eth.account.sign_transaction(approve_tx, account)
                 raw_tx = web3.eth.send_raw_transaction(signed_tx.raw_transaction)
                 tx_hash = web3.to_hex(raw_tx)
-                await asyncio.sleep(5)  # Wait for approval to process
+                await asyncio.sleep(5)
                 self.log(
                     f"{Fore.CYAN+Style.BRIGHT}     Approve :{Style.RESET_ALL}"
                     f"{Fore.GREEN+Style.BRIGHT} Success {Style.RESET_ALL}"
@@ -164,16 +164,20 @@ class LiqquidityBot:
     async def perform_add_dvm_liquidity(self, account: str, address: str, base_token: str, quote_token: str, amount: float, use_proxy: bool):
         try:
             web3 = await self.get_web3_with_check(address, use_proxy)
-            pair_address = self.POOL_ADDRESS_USDC_USDT  # Using USDC/USDT pair as default
+            pair_address = self.POOL_ADDRESS_USDC_USDT
             dvm_address = web3.to_checksum_address(pair_address)
-            decimals = 6  # Assuming 6 decimals for USDC/USDT
+            decimals = 6
             in_amount = int(amount * (10 ** decimals))
-            min_amount = int(in_amount * (1 - 0.1 / 100))  # 0.1% slippage tolerance
+            min_amount = int(in_amount * (1 - 2.0 / 100))  # Increased to 2% slippage tolerance
             deadline = int(time.time()) + 600
 
             # Check token balances
             usdc_balance = await self.get_token_balance(address, base_token, use_proxy)
             usdt_balance = await self.get_token_balance(address, quote_token, use_proxy)
+            self.log(
+                f"{Fore.CYAN+Style.BRIGHT}     Balance :{Style.RESET_ALL}"
+                f"{Fore.WHITE+Style.BRIGHT} USDC={usdc_balance}, USDT={usdt_balance}, Required={amount} {Style.RESET_ALL}"
+            )
             if usdc_balance < amount or usdt_balance < amount:
                 raise Exception(f"Insufficient balance: USDC={usdc_balance}, USDT={usdt_balance}, Required={amount}")
 
@@ -188,12 +192,12 @@ class LiqquidityBot:
                 dvm_address, in_amount, in_amount, min_amount, min_amount, 0, deadline
             )
             estimated_gas = add_lp_data.estimate_gas({"from": address, "value": 0})
-            max_priority_fee = web3.to_wei(1, "gwei")
+            max_priority_fee = web3.to_wei(2, "gwei")  # Increased gas fee
             max_fee = max_priority_fee
             add_lp_tx = add_lp_data.build_transaction({
                 "from": address,
                 "value": 0,
-                "gas": int(estimated_gas * 1.2),
+                "gas": int(estimated_gas * 1.5),  # Increased gas limit
                 "maxFeePerGas": int(max_fee),
                 "maxPriorityFeePerGas": int(max_priority_fee),
                 "nonce": web3.eth.get_transaction_count(address, "pending"),
@@ -202,7 +206,7 @@ class LiqquidityBot:
             signed_tx = web3.eth.account.sign_transaction(add_lp_tx, account)
             raw_tx = web3.eth.send_raw_transaction(signed_tx.raw_transaction)
             tx_hash = web3.to_hex(raw_tx)
-            await asyncio.sleep(10)  # Wait for transaction to be mined
+            await asyncio.sleep(10)
             self.log(
                 f"{Fore.CYAN+Style.BRIGHT}     Status  :{Style.RESET_ALL}"
                 f"{Fore.GREEN+Style.BRIGHT} Add Liquidity Success {Style.RESET_ALL}"
@@ -285,7 +289,7 @@ class LiqquidityBot:
             f"{Fore.WHITE + Style.BRIGHT} {proxy} {Style.RESET_ALL}"
         )
         
-        for i in range(100):  # Loop 100 times for LP addition
+        for i in range(100):  # Loop 100 times
             self.log(
                 f"{Fore.CYAN + Style.BRIGHT}     Action  :{Style.RESET_ALL}"
                 f"{Fore.WHITE + Style.BRIGHT} Adding Liquidity {i+1}/100 with {self.lp_amount} USDC/USDT {Style.RESET_ALL}"
@@ -296,7 +300,7 @@ class LiqquidityBot:
                     f"{Fore.CYAN+Style.BRIGHT}     Warning :{Style.RESET_ALL}"
                     f"{Fore.YELLOW+Style.BRIGHT} Skipping to next iteration due to failure. {Style.RESET_ALL}"
                 )
-            await asyncio.sleep(5)  # Delay between each LP addition
+            await asyncio.sleep(5)  # Delay between attempts
 
     async def main(self):
         try:
